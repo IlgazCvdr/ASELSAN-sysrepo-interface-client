@@ -1,0 +1,31 @@
+<!-- connect.html -->
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <form method="post">
+                {% csrf_token %}
+                {{ form.host|as_crispy_field }}
+                {{ form.port|as_crispy_field }}
+                {{ form.username|as_crispy_field }}
+                {{ form.password|as_crispy_field }}
+                <button type="submit" class="btn btn-primary">Connect</button>
+            </form>
+            {% if error_message %}
+            <div class="alert alert-danger mt-3">
+                {{ error_message }}
+            </div>
+            {% endif %}
+            {% if show_popup %}
+            <script>
+                // JavaScript for displaying a popup on authentication error
+                alert("Authentication failed. Please check your credentials and try again.");
+            </script>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

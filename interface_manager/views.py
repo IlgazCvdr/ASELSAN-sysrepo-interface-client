@@ -82,16 +82,12 @@ def create_interface(request):
     global global_manager
     if request.method == 'POST':
         interface_name = request.POST.get('interface_name')
+        ip_address = request.POST.get('ip_address')
         connection_data = request.session.get('netopeer_connection')
 
         if not connection_data:
             return HttpResponse("Connection data not found in session", status=400)
-        print(interface_name)
-        rpc_request = f'''
-            <create-network-interface xmlns="http://example.com/aselsan-network-settings">
-                <interface-name>{interface_name}</interface-name>
-            </create-network-interface>
-            '''
+
         if not global_manager:
             try:
                 global_manager = manager.connect(
@@ -100,16 +96,39 @@ def create_interface(request):
                     username=connection_data['username'],
                     password=connection_data['password'],
                     hostkey_verify=False
-                ) 
+                )
             except AuthenticationError:
                 return HttpResponse("Authentication failed", status=403)
             except Exception as e:
                 return HttpResponse(f"An error occurred: {e}", status=500)
-        else:
-            response = global_manager.dispatch(etree.fromstring(rpc_request))
-        return render(request, 'interface_response.html', {'response': response})
-    
+
+        # Create the interface
+        create_rpc_request = f'''
+            <create-network-interface xmlns="http://example.com/aselsan-network-settings">
+                <interface-name>{interface_name}</interface-name>
+            </create-network-interface>
+            '''
+        try:
+            response = global_manager.dispatch(etree.fromstring(create_rpc_request))
+        except Exception as e:
+            return HttpResponse(f"Error creating interface: {str(e)}", status=500)
+
+        # Set the IP address
+        set_ip_rpc_request = f'''
+            <set-ip-settings xmlns="http://example.com/aselsan-network-settings">
+                <interface-name>{interface_name}</interface-name>
+                <ip-address>{ip_address}</ip-address>
+            </set-ip-settings>
+            '''
+        try:
+            response = global_manager.dispatch(etree.fromstring(set_ip_rpc_request))
+        except Exception as e:
+            return HttpResponse(f"Error setting IP address: {str(e)}", status=500)
+
+        return redirect('network_interfaces')
+
     return render(request, 'create_interface.html')
+
 def connect(request):
     global global_manager
 

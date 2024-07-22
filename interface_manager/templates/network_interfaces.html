@@ -1,0 +1,38 @@
+<!-- interface_manager/templates/network_interfaces.html -->
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-12">
+            <h2>Network Interfaces</h2>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Interface Name</th>
+                        <th>IP Address</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for interface in interfaces %}
+                    <tr>
+                        <td>{{ interface.name }}</td>
+                        <td>{{ interface.ip }}</td>
+                        <td>
+                            <form method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="interface_name" value="{{ interface.name }}">
+                                <input type="text" name="ip_address" class="form-control" placeholder="Set new IP" required>
+                                <button type="submit" class="btn btn-primary mt-2">Set IP</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <a href="{% url 'create_interface' %}" class="btn btn-secondary mt-3">Create Interface</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

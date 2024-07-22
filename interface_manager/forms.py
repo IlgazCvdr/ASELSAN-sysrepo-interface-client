@@ -11,7 +11,7 @@ load_dotenv()
 class ConnectForm(forms.Form):
     host = forms.CharField(label='Host', max_length=100)
     port = forms.IntegerField(label='Port', initial=830)
-    username = forms.CharField(label='Username', max_length=100, initial="ilgaz")
+    username = forms.CharField(label='Username', max_length=100, initial="root")
     password = forms.CharField(label='Password', widget=forms.PasswordInput)
 
     def __init__(self, *args, **kwargs):

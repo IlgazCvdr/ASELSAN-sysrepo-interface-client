@@ -1,5 +1,6 @@
 # interface_manager/views.py
 
+from django.http import HttpResponse
 from django.shortcuts import render, redirect
 from django.conf import settings
 from ncclient import manager
@@ -11,67 +12,104 @@ from lxml import etree
 # Global manager instance
 global_manager = None
 
-def create_network_interface(interface_name):
-    rpc_request = f'''
-    <create-network-interface xmlns="http://example.com/aselsan-network-settings">
-        <interface-name>{interface_name}</interface-name>
-    </create-network-interface>
-    '''
 
-    if global_manager is None or not global_manager.connected:
-        # Try to connect using saved session data
+def get_network_interfaces(request):
+    global global_manager
+    connection_data = request.session.get('netopeer_connection')
+
+    if not connection_data:
+        return HttpResponse("Connection data not found in session", status=400)
+
+    if not global_manager:
         try:
             global_manager = manager.connect(
-                host=settings.NETOPEER_HOST,
-                port=settings.NETOPEER_PORT,
-                username=settings.NETOPEER_USERNAME,
-                password=settings.NETOPEER_PASSWORD,
+                host=connection_data['host'],
+                port=connection_data['port'],
+                username=connection_data['username'],
+                password=connection_data['password'],
                 hostkey_verify=False
             )
+        except AuthenticationError:
+            return HttpResponse("Authentication failed", status=403)
         except Exception as e:
-            return f"Error connecting to Netopeer server: {str(e)}"
+            return HttpResponse(f"An error occurred: {e}", status=500)
 
-    try:
-        response = global_manager.dispatch(etree.fromstring(rpc_request))
-        return f"RPC response: {response}"
-    except Exception as e:
-        return f"Error sending RPC: {str(e)}"
-
-def set_ip_settings(interface_name, ip_address):
-    rpc_request = f'''
-    <set-ip-settings xmlns="http://example.com/aselsan-network-settings">
-        <interface-name>{interface_name}</interface-name>
-        <ip-address>{ip_address}</ip-address>
-    </set-ip-settings>
-    '''
-
-    if global_manager is None or not global_manager.connected:
-        # Try to connect using saved session data
-        try:
-            global_manager = manager.connect(
-                host=settings.NETOPEER_HOST,
-                port=settings.NETOPEER_PORT,
-                username=settings.NETOPEER_USERNAME,
-                password=settings.NETOPEER_PASSWORD,
-                hostkey_verify=False
-            )
-        except Exception as e:
-            return f"Error connecting to Netopeer server: {str(e)}"
-
-    try:
-        response = global_manager.dispatch(etree.fromstring(rpc_request))
-        return f"RPC response: {response}"
-    except Exception as e:
-        return f"Error sending RPC: {str(e)}"
-
-def create_interface(request):
     if request.method == 'POST':
         interface_name = request.POST.get('interface_name')
-        response = create_network_interface(interface_name)
+        ip_address = request.POST.get('ip_address')
+
+        rpc_request = f'''
+        <set-ip-settings xmlns="http://example.com/aselsan-network-settings">
+            <interface-name>{interface_name}</interface-name>
+            <ip-address>{ip_address}</ip-address>
+        </set-ip-settings>
+        '''
+        try:
+            response = global_manager.dispatch(etree.fromstring(rpc_request))
+            print(response)
+        except Exception as e:
+            return HttpResponse(f"Error sending RPC: {str(e)}", status=500)
+    
+    try:
+        # Send the RPC request to get interfaces
+        print("aaaaaaaaaa")
+        rpc_request = '''
+    <get-network-interfaces xmlns="http://example.com/aselsan-network-settings"/>'''
+        response = global_manager.dispatch(etree.fromstring(rpc_request))
+        print(response)
+        interfaces = parse_interfaces_response(response)
+    except Exception as e:
+        return HttpResponse(f"An error occurred: {e}", status=500)
+    
+    return render(request, 'network_interfaces.html', {'interfaces': interfaces})
+
+def parse_interfaces_response(response):
+    interfaces = []
+    root = etree.fromstring(response.xml)
+    interfaces_text = root.findtext('.//{http://example.com/aselsan-network-settings}interfaces').strip()
+    
+    lines = interfaces_text.split('\n')
+    for line in lines:
+        parts = line.split()
+        if len(parts) == 2:
+            name, ip = parts
+            interfaces.append({'name': name, 'ip': ip})
+    
+    return interfaces
+
+
+def create_interface(request):
+    global global_manager
+    if request.method == 'POST':
+        interface_name = request.POST.get('interface_name')
+        connection_data = request.session.get('netopeer_connection')
+
+        if not connection_data:
+            return HttpResponse("Connection data not found in session", status=400)
+        print(interface_name)
+        rpc_request = f'''
+            <create-network-interface xmlns="http://example.com/aselsan-network-settings">
+                <interface-name>{interface_name}</interface-name>
+            </create-network-interface>
+            '''
+        if not global_manager:
+            try:
+                global_manager = manager.connect(
+                    host=connection_data['host'],
+                    port=connection_data['port'],
+                    username=connection_data['username'],
+                    password=connection_data['password'],
+                    hostkey_verify=False
+                ) 
+            except AuthenticationError:
+                return HttpResponse("Authentication failed", status=403)
+            except Exception as e:
+                return HttpResponse(f"An error occurred: {e}", status=500)
+        else:
+            response = global_manager.dispatch(etree.fromstring(rpc_request))
         return render(request, 'interface_response.html', {'response': response})
-
+    
     return render(request, 'create_interface.html')
-
 def connect(request):
     global global_manager
 

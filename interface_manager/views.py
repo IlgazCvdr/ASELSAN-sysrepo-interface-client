@@ -12,14 +12,13 @@ from lxml import etree
 # Global manager instance
 global_manager = None
 
-
 def get_network_interfaces(request):
-    global global_manager
     connection_data = request.session.get('netopeer_connection')
-
+    
     if not connection_data:
         return HttpResponse("Connection data not found in session", status=400)
-
+    
+    global global_manager
     if not global_manager:
         try:
             global_manager = manager.connect(
@@ -28,41 +27,75 @@ def get_network_interfaces(request):
                 username=connection_data['username'],
                 password=connection_data['password'],
                 hostkey_verify=False
-            )
+            ) 
         except AuthenticationError:
             return HttpResponse("Authentication failed", status=403)
         except Exception as e:
             return HttpResponse(f"An error occurred: {e}", status=500)
 
-    if request.method == 'POST':
-        interface_name = request.POST.get('interface_name')
-        ip_address = request.POST.get('ip_address')
-
-        rpc_request = f'''
-        <set-ip-settings xmlns="http://example.com/aselsan-network-settings">
-            <interface-name>{interface_name}</interface-name>
-            <ip-address>{ip_address}</ip-address>
-        </set-ip-settings>
-        '''
-        try:
-            response = global_manager.dispatch(etree.fromstring(rpc_request))
-            print(response)
-        except Exception as e:
-            return HttpResponse(f"Error sending RPC: {str(e)}", status=500)
-    
     try:
-        # Send the RPC request to get interfaces
-        print("aaaaaaaaaa")
         rpc_request = '''
-    <get-network-interfaces xmlns="http://example.com/aselsan-network-settings"/>'''
+            <get-network-interfaces xmlns="http://example.com/aselsan-network-settings"/>
+        '''
         response = global_manager.dispatch(etree.fromstring(rpc_request))
-        print(response)
         interfaces = parse_interfaces_response(response)
     except Exception as e:
         return HttpResponse(f"An error occurred: {e}", status=500)
     
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        interface_name = request.POST.get('interface_name')
+        old_ip_address = request.POST.get('old_ip_address')
+        new_ip_address = request.POST.get('new_ip_address')
+
+        if action == 'add':
+            add_ip(interface_name, new_ip_address)
+        elif action == 'delete':
+            delete_ip(interface_name, old_ip_address)
+        elif action == 'set':
+            set_ip(interface_name, old_ip_address, new_ip_address)
+        
+        # Refresh interface list after action
+        try:
+            response = global_manager.dispatch(etree.fromstring(rpc_request))
+            interfaces = parse_interfaces_response(response)
+        except Exception as e:
+            return HttpResponse(f"An error occurred: {e}", status=500)
+    
     return render(request, 'network_interfaces.html', {'interfaces': interfaces})
 
+def add_ip(interface_name, ip_address):
+    rpc_request = f'''
+    <set-ip-settings xmlns="http://example.com/aselsan-network-settings">
+        <interface-name>{interface_name}</interface-name>
+        <ip-address>{ip_address}</ip-address>
+    </set-ip-settings>
+    '''
+    try:
+        response = global_manager.dispatch(etree.fromstring(rpc_request))
+        print("RPC response:", response)
+    except Exception as e:
+        print(f"Error sending RPC: {str(e)}")
+
+def delete_ip(interface_name, ip_address):
+    rpc_request = f'''
+    <delete-ip-address xmlns="http://example.com/aselsan-network-settings">
+        <interface-name>{interface_name}</interface-name>
+        <ip-address>{ip_address}</ip-address>
+    </delete-ip-address>
+    '''
+
+    try:
+        response = global_manager.dispatch(etree.fromstring(rpc_request))
+        print("RPC response:", response)
+    except Exception as e:
+        print(f"Error sending RPC: {str(e)}")
+
+def set_ip(interface_name, old_ip_address, new_ip_address):
+    # First delete the old IP address
+    delete_ip(interface_name, old_ip_address)
+    # Then add the new IP address
+    add_ip(interface_name, new_ip_address)
 def parse_interfaces_response(response):
     interfaces = []
     root = etree.fromstring(response.xml)
@@ -76,7 +109,6 @@ def parse_interfaces_response(response):
             interfaces.append({'name': name, 'ip': ip})
     
     return interfaces
-
 
 def create_interface(request):
     global global_manager

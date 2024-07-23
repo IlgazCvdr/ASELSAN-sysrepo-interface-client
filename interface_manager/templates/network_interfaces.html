@@ -24,7 +24,7 @@
                                 {% csrf_token %}
                                 <input type="hidden" name="interface_name" value="{{ interface.name }}">
                                 <input type="hidden" name="old_ip_address" value="{{ interface.ip }}">
-                                <input type="text" name="new_ip_address" class="form-control mb-2" placeholder="Set new IP" required>
+                                <input type="text" name="new_ip_address" class="form-control mb-2" placeholder="Set new IP">
                                 <button type="submit" name="action" value="set" class="btn btn-warning mt-2">Set IP</button>
                                 <button type="submit" name="action" value="add" class="btn btn-success mt-2">Add IP</button>
                                 <button type="submit" name="action" value="delete" class="btn btn-danger mt-2">Delete IP</button>
